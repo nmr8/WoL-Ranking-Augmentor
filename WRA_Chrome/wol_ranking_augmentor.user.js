@@ -319,6 +319,29 @@ var WFA =
 		return posts;
 	},
 	/**************************************************************
+	 * Returns all players for the current rankings page.
+	 * 
+	 * @return (Array) An array of HTML node elements
+	 *
+	 **************************************************************/
+	getPlayers: function()
+	{
+		var players = [];
+		
+		var oddPlayers = document.getElementsByClassName('odd');
+		var evenPlayers = document.getElementsByClassName('even');
+		
+		players.length = oddPlayers.length + evenPlayers.length;
+		for (var i=0; i<oddPlayers.length; i++) {
+			players[i] = oddPlayers[i];
+		}
+		
+		for (var i=0; i<evenPlayers.length; i++) {
+			players[i+oddPlayers.length] = evenPlayers[i];
+		}
+		return players;
+	},
+	/**************************************************************
 	 * Before the current page unloads, save the current
 	 * guild rank cache to be used on subsequent pages.
 	 *
@@ -433,6 +456,40 @@ var WFA =
 			callBack( null );
 		}
 	},
+	/**************************************************************
+	 * Attempts to retrieve a player's average ilevel information.
+	 *
+	 * @param (String) area Two letter area locale
+	 * @param (String) realm A WoW realm server name
+	 * @param (String) playerName A WoW guild located in the 
+	 *				 specified area & realm
+	 * @param (Function) callBack a handler that accepts the guild rank info as a single argument
+	 *
+	 * @returns WFA.IS_REQUEST, WFA.FAILED_REQUEST, or a rank
+	 *			info object: {score:,world_rank,area_rank:}
+	 * 
+	 *
+	 **************************************************************/
+	getPlayerAvgIlevel: function( area, realm, playerName, callBack )
+	{
+		if( area && playerName && realm )
+		{
+			var key = WFA.generateGuildRealmKey( area, realm, "p_" + playerName );
+			//not cached or cache is old
+			if( !WFA.rankCache[key] || ((new Date()) - WFA.rankCache[key].timestamp) > 1000*180 )
+			{
+				WFA.requestAvgIlevel( area, realm, playerName, callBack );
+			}
+			else
+			{
+				callBack( WFA.rankCache[key].value );
+			}
+		}
+		else
+		{
+			callBack( null );
+		}	
+	},
 	isChrome: function()
 	{
 	    return navigator.userAgent.toLowerCase().indexOf('chrome') > -1;
@@ -479,6 +536,82 @@ var WFA =
 		    });	
         }
 		
+	},
+	/**************************************************************
+	 * Requests a player's average ilevel information from us.battle.net
+	 *
+	 * 
+	 * @param (String) area Two letter area locale
+	 * @param (String) realm A WoW realm server name
+	 * @param (String) playerName A WoW player located in the 
+	 *				 specified area & realm
+	 * @param (Function) callBack Call back handler that takes a single rankInfo parameter
+	 * 
+	 *
+	 * @returns WFA.IS_REQUEST, WFA.FAILED_REQUEST, or a rank
+	 *			info object: {score:,world_rank,area_rank:}
+	 *
+	 **************************************************************/
+	requestAvgIlevel: function( area, realm, playerName, WRACallBack )
+	{
+		
+		var key = WFA.generateGuildRealmKey( area, realm, "p_" + playerName );
+		//area = area.replace( /'/g, '-' ).replace( /\s/g, "+").toLowerCase();
+		//realm = realm.replace( /'/g, '-' ).replace( /\s/g, "-").toLowerCase();
+		var requestUrl = 'http://'+area+'.battle.net/wow/en/character/'+realm+'/'+playerName+'/simple';
+		
+        if( WFA.isChrome() )
+        {
+			console.log("requestAvgIlevel XHR: " + requestUrl);
+			var XHRcallback = function(responseDetails){WFA.onWRARequest( responseDetails, key, area, realm, playerName, WRACallBack)};
+        	chrome.extension.sendRequest({'action' : 'fetchGuildRank', 'requestUrl':requestUrl}, XHRcallback);
+			//console.log("request sent");
+        }
+        /*********************************************************
+		 * not supporting firefox + greasemonkey yet, just chrome
+		else
+        {
+    		GM_xmlhttpRequest(
+    		{
+    			method: 'GET',
+    			url: requestUrl,
+    			headers: 
+    			{
+    				'Accept': 'text/html,text/javascript,text/json',
+    			},
+    			onload: function(responseDetails){WFA.onRequest( responseDetails, key,area, realm, guild, callBack)}
+		    });	
+        }
+		 **********************************************************/
+		
+	},	
+	/**************************************************************
+	 * Callback handler for player average ilevel information requests
+	 * or Chrome background responses with a fake response object.
+	 *
+	 *
+	 * @param (Object) responseDetails The fake response object or a real xmlHttpRequest response object
+	 * @param (String) key Unique cache key any responses should be saved to
+	 * @param (String) area The US/EU locale string
+	 * @param (String) realm  A realm name of the requested guild
+	 * @param (String) playerName A player's name 
+	 * @param (Function) WRACallBack A handler that accepts the rank info as single argument
+	 *
+	 **************************************************************/
+	onWRARequest: function(responseDetails, key, area, playerName, guild, WRACallBack)
+	{
+		var responseObj = WFA.FAILED_REQUEST;
+		//console.log("onWRARequest: " + responseDetails.responseText.substr(0,50));
+		
+		var parser = new DOMParser();
+		var xmlDoc = parser.parseFromString(responseDetails.responseText,"text/xml");
+		
+		responseObj = {avgilvl:xmlDoc.getElementById("summary-averageilvl-best").innerHTML};
+		console.log("onWRARequest responseObj: " + responseObj);
+		
+		WFA.rankCache[key] = {value: responseObj, timestamp:(new Date()).getTime() };
+		
+		WRACallBack( responseObj );
 	},
 	/**************************************************************
 	 * Callback handler for guild rank information requests
@@ -1042,6 +1175,70 @@ var WFA_UPDATE =
 }
 
 /**************************************************************
+ * Player object from the WoL rankings pages.  Contains all basic 
+ * operations needed to properly manipulate a player ranking 
+ * record as an object.
+ **************************************************************/
+WRA_Player =
+{
+	prototype:
+	{
+		playerName: '',
+		guildName: '',
+		realmName: '',
+		region: '',
+		node: null,
+		init:function( node )
+		{
+			this.node = node;
+			this.playerName = node.cells[1].getElementsByTagName("a")[0].innerHTML;
+			this.guildName = node.cells[4].getElementsByTagName("a")[0].innerHTML;
+			this.realmName = node.cells[5].getElementsByTagName("a")[0].innerHTML.substr(3).toLowerCase();
+			this.region = node.cells[5].getElementsByTagName("a")[0].innerHTML.substr(0,2).toLowerCase();
+			//console.log("pn: " + this.playerName + " gn: " + this.guildName + " rn: " + this.realmName + " rgn: " + this.region);
+		},
+		/**************************************************************
+		 * Applies styles to the player records
+		 *
+		 **************************************************************/
+		update:function()
+		{
+			var obj = this;
+			
+			var callBack = function( rankInfo ){ obj.updateCallBack( rankInfo ) }
+			var WRAcallBack = function( rankInfo ){ obj.updateWRACallBack( rankInfo ) }
+			WFA.getGuildRankInfo( this.region, this.realmName,  this.guildName, callBack );
+			WFA.getPlayerAvgIlevel( this.region, this.realmName, this.playerName, WRAcallBack );
+		},
+		/**************************************************************
+		 * Call back from obtaining rank information for 
+		 * WFA.getGuildRankInfo.
+		 *
+		 * @param (Object) rankInfo The rank information according to
+		 *                          the return information of 
+		 *                          WFA.getGuildRankInfo()
+		 **************************************************************/
+		updateCallBack:function( rankInfo )
+		{
+			//console.log("updateCallBack " + this.playerName + " rank " + rankInfo);
+			if( rankInfo && typeof(rankInfo) == 'object' )
+			{
+				if ( rankInfo.area_rank )
+				{
+					this.node.style.background = WFA.getRankBorderColor( rankInfo.area_rank );
+					//console.log("set background color of " + WFA.getRankBorderColor( rankInfo.area_rank ) );
+				}
+			}
+		},
+		updateWRACallBack:function( rankInfo )
+		{
+			console.log("updateWRACallBack " + this.playerName + ": " + rankInfo.avgilvl);
+		}		
+	}
+}
+
+
+/**************************************************************
  * Post object from the original WoW Forums. Contains all
  * basic operations needed to properly manipulate a post
  * as an object.
@@ -1556,6 +1753,7 @@ WFA_WowPost = classify( WFA_WowPost );
 WFA_WowPostBlue = classify( WFA_WowPostBlue, WFA_WowPost );
 WFA_BnetPost = classify( WFA_BnetPost, WFA_WowPost );
 WFA_BnetPostBlue = classify( WFA_BnetPostBlue, WFA_WowPost );
+WRA_Player = classify( WRA_Player );
 
 //Restore previous options, must be done before any processing
 //or options are useless.
@@ -1607,6 +1805,23 @@ for( var i = 0; i < postsArray.length; i++ )
 for( var i = 0; i < posts.length; i++)
 {
 	posts[i].update();	
+}
+
+/******************************************************************************
+ * WRA implementation begins here
+ * 
+ *****************************************************************************/
+var playerElements = WFA.getPlayers();
+var players = [];
+
+for( var i = 0; i < playerElements.length; i++)
+{
+	players.push( new WRA_Player( playerElements[i] ) );	
+}
+
+for( var i = 0; i < players.length; i++)
+{
+	players[i].update();	
 }
 
 //create & show the options pane

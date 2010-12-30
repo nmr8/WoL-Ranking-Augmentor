@@ -11,23 +11,25 @@
     function fetchGuildRank( requestUrl, callBack )
     {
         var xhr = new XMLHttpRequest();
-            xhr.onreadystatechange = function(data) 
-            {               
-                if ( xhr.readyState == 4 ) 
-                {
-                    if ( xhr.status == 200  )
-                    {
-                        var responseOjb = {responseText:xhr.responseText};
-                        callBack( responseOjb );
-                    }
-                }
-            }
-            // Note that any URL fetched here must be matched by a permission in
-            // the manifest.json file!
-            xhr.open('GET', requestUrl, true);
-            xhr.send();
-    }
-    
+		xhr.onreadystatechange = function(data) 
+		{               
+			if ( xhr.readyState == 4 ) 
+			{
+				if ( xhr.status == 200  )
+				{
+					//var responseOjb = {responseText:xhr.responseText,responseXML:xhr.responseXML};
+					var responseOjb = {responseText:xhr.responseText};
+					callBack( responseOjb );
+				}
+			}
+		}
+		// Note that any URL fetched here must be matched by a permission in
+		// the manifest.json file!
+		//console.log("xhr.open: " + requestUrl);
+		xhr.open('GET', requestUrl, true);
+		xhr.send();
+    };
+
     /**
      * Generic handler for all action requests.
      *
@@ -38,9 +40,10 @@
      **/
     function onRequest(request, sender, callback) 
     {
+		//console.log("onRequest: " + request);
         if (request.action == 'fetchGuildRank') 
         {
-          fetchGuildRank(request.requestUrl, callback);
+			fetchGuildRank(request.requestUrl, callback);
         }
     };
     

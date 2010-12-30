@@ -1,7 +1,7 @@
 {
-    "name": "WoW Forum Augmentor",
+    "name": "WoL Rankings Augmentor",
     "version": "2.0",
-    "description": "Enhances World of Warcraft NA/EU forums with WoW Progress scores ",
+    "description": "Enhances WoL DPS rankings with average ilevel information from the Armory.",
     "icons": 
     { 
         "48":  "icons/icon_48.png",
@@ -10,17 +10,20 @@
     "permissions": 
     [
         "http://www.wowprogress.com/*",
-        "http://us.battle.net/wow/en/forum/topic/*",
-        "http://eu.battle.net/wow/en/forum/topic/*"
+		"http://worldoflogs.com/rankings/*",
+		"http://us.battle.net/wow/en/character/*",
+		"http://eu.battle.net/wow/en/character/*"
     ],
     "background_page": "background.html",
     "content_scripts":
     [
         {
-            "matches": ["http://forums.worldofwarcraft.com/*","http://forums.wow-europe.com/*","http://us.battle.net/wow/en/forum/topic/*","http://eu.battle.net/wow/en/forum/topic/*"],
-            "js": ["wow_forum_augmentor.user.js"],
+            "matches": ["http://worldoflogs.com/rankings/*"],
+            "js": ["wol_ranking_augmentor.user.js"],
             "run_at": "document_end"
         }
     ]
-    
 }
+
+
+

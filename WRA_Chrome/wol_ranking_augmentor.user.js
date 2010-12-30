@@ -476,7 +476,7 @@ var WFA =
 		{
 			var key = WFA.generateGuildRealmKey( area, realm, "p_" + playerName );
 			//not cached or cache is old
-			if( !WFA.rankCache[key] || ((new Date()) - WFA.rankCache[key].timestamp) > 1000*180 )
+			if( !WFA.rankCache[key] || ((new Date()) - WFA.rankCache[key].timestamp) > WFA.maxEntryAge )
 			{
 				WFA.requestAvgIlevel( area, realm, playerName, callBack );
 			}
@@ -1184,6 +1184,7 @@ WRA_Player =
 	prototype:
 	{
 		playerName: '',
+		playerNode: null,
 		guildName: '',
 		realmName: '',
 		region: '',
@@ -1191,7 +1192,8 @@ WRA_Player =
 		init:function( node )
 		{
 			this.node = node;
-			this.playerName = node.cells[1].getElementsByTagName("a")[0].innerHTML;
+			this.playerNode = node.cells[1];
+			this.playerName = this.playerNode.getElementsByTagName("a")[0].innerHTML;
 			this.guildName = node.cells[4].getElementsByTagName("a")[0].innerHTML;
 			this.realmName = node.cells[5].getElementsByTagName("a")[0].innerHTML.substr(3).toLowerCase();
 			this.region = node.cells[5].getElementsByTagName("a")[0].innerHTML.substr(0,2).toLowerCase();
@@ -1233,6 +1235,10 @@ WRA_Player =
 		updateWRACallBack:function( rankInfo )
 		{
 			console.log("updateWRACallBack " + this.playerName + ": " + rankInfo.avgilvl);
+			var ilvllink = document.createElement("a");
+			ilvllink.setAttribute('href', "http://"+this.region+".battle.net/wow/en/character/"+this.realmName+"/"+this.playerName+"/advanced");
+			ilvllink.appendChild(document.createTextNode(rankInfo.avgilvl));
+			this.playerNode.appendChild(ilvllink);
 		}		
 	}
 }
